@@ -31,8 +31,11 @@ Chat from all servers gets bridged with a discord channel
     - To get a channel id, you have to enable developer mode in Discord
     - Open Discord settings, go to `Advanced`, then turn on `Developer Mode`
     - Now right-click the channel you want to use and click `Copy ID`
-8. Set any additional config options you want
-9. Start the server and check if it works
+8. OPTIONAL: Under `[discord]`, paste the thread id you want to use under `thread`
+    - If set, all messages (including webhook messages) will be sent to this thread instead of the channel
+    - Right-click the thread and click `Copy ID`
+9. Set any additional config options you want
+10. Start the server and check if it works
 
 ### For Webhooks
 

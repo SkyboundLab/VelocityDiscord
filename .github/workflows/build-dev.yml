@@ -1,0 +1,35 @@
+name: Build Development
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: nix-shell -p jdk21 gradle --run "gradle shadowJar"
+
+      - name: Extract repository name
+        run: echo "NAME=$(basename ${{ github.repository }})" >> $GITHUB_ENV
+
+      - name: Upload Build
+        uses: marvinpinto/action-automatic-releases@master
+        with:
+          title: "${{ env.NAME }}"
+          automatic_release_tag: "latest"
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          files: "build/libs/*.jar"
+          prerelease: false

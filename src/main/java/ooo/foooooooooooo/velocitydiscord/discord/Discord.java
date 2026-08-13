@@ -7,17 +7,21 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.IncomingWebhookClient;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.WebhookClient;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
+import net.dv8tion.jda.internal.requests.restaction.WebhookMessageCreateActionImpl;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import ooo.foooooooooooo.velocitydiscord.config.Config;
 import ooo.foooooooooooo.velocitydiscord.discord.commands.ICommand;
@@ -47,7 +51,7 @@ public class Discord extends ListenerAdapter {
 
   private final MessageListener messageListener;
 
-  private TextChannel activeChannel;
+  private GuildMessageChannel activeChannel;
   private int lastPlayerCount = -1;
 
   public boolean ready = false;
@@ -126,12 +130,27 @@ public class Discord extends ListenerAdapter {
 
     logger.info("Loaded channel: " + channel.getName());
 
-    if (!channel.canTalk()) {
+    GuildMessageChannel messageChannel = channel;
+
+    if (!config.bot.THREAD_ID.isEmpty()) {
+      var thread = jda.getThreadChannelById(config.bot.THREAD_ID);
+
+      if (thread == null) {
+        logger.severe("Could not load thread with id: " + config.bot.THREAD_ID);
+        return;
+      }
+
+      logger.info("Loaded thread: " + thread.getName());
+
+      messageChannel = thread;
+    }
+
+    if (!messageChannel.canTalk()) {
       logger.severe("Cannot talk in configured channel");
       return;
     }
 
-    activeChannel = channel;
+    activeChannel = messageChannel;
 
     var guild = activeChannel.getGuild();
 
@@ -143,12 +162,7 @@ public class Discord extends ListenerAdapter {
       if (msg instanceof String message) {
         activeChannel.sendMessage(message).queue();
       } else if (msg instanceof QueuedWebhookMessage webhookMessage) {
-        if (this.webhookClient != null) {
-          this.webhookClient.sendMessage(webhookMessage.message)
-            .setAvatarUrl(webhookMessage.avatar)
-            .setUsername(webhookMessage.username)
-            .queue();
-        }
+        sendWebhookMessage(webhookMessage.message, webhookMessage.avatar, webhookMessage.username);
       } else if (msg instanceof MessageEmbed embed) {
         activeChannel.sendMessageEmbeds(embed).queue();
       } else {
@@ -511,11 +525,14 @@ public class Discord extends ListenerAdapter {
   public void updateChannelTopic() {
     if (!ready) return;
 
+    // threads don't have topics
+    if (!(activeChannel instanceof TextChannel textChannel)) return;
+
     var topic = generateChannelTopic();
 
     if (topic == null) return;
 
-    activeChannel.getManager().setTopic(topic).queue();
+    textChannel.getManager().setTopic(topic).queue();
   }
 
   private String formatUptime(long uptimeMillis) {
@@ -586,10 +603,26 @@ public class Discord extends ListenerAdapter {
     var webhookMessage = new MessageCreateBuilder().setContent(content).build();
 
     if (ready) {
-      webhookClient.sendMessage(webhookMessage).setAvatarUrl(avatar).setUsername(discordName).queue();
+      sendWebhookMessage(webhookMessage, avatar, discordName);
     } else {
       preReadyQueue.add(new QueuedWebhookMessage(webhookMessage, avatar, discordName));
     }
+  }
+
+  private void sendWebhookMessage(MessageCreateData message, String avatar, String username) {
+    if (webhookClient == null) {
+      logger.fine("Webhook client was not created due to configuration error, skipping sending message");
+      return;
+    }
+
+    WebhookMessageCreateAction<Message> action = webhookClient.sendMessage(message);
+
+    if (!config.bot.THREAD_ID.isEmpty()) {
+      // use the webhook's thread_id query param to send into a thread (JDA lacks a public API for this)
+      action = ((WebhookMessageCreateActionImpl<Message>) action).setThreadId(config.bot.THREAD_ID);
+    }
+
+    action.setAvatarUrl(avatar).setUsername(username).queue();
   }
 
   // endregion
@@ -601,7 +634,7 @@ public class Discord extends ListenerAdapter {
 
     var msg = message;
 
-    for (var member : activeChannel.getMembers()) {
+    for (var member : activeChannel.getGuild().getMemberCache()) {
       msg = Pattern.compile(Pattern.quote("@" + member.getUser().getName()), Pattern.CASE_INSENSITIVE)
         .matcher(msg)
         .replaceAll(member.getAsMention());

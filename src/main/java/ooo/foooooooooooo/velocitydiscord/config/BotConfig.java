@@ -15,6 +15,7 @@ public class BotConfig extends BaseConfig {
   // bot
   public String DISCORD_TOKEN = DefaultToken;
   public String CHANNEL_ID = DefaultChannelId;
+  public String THREAD_ID = "";
 
   // webhooks
   public String WEBHOOK_URL = DefaultWebhookUrl;
@@ -38,6 +39,7 @@ public class BotConfig extends BaseConfig {
     // bot
     DISCORD_TOKEN = get(config, "discord.token", DISCORD_TOKEN);
     CHANNEL_ID = get(config, "discord.channel", CHANNEL_ID);
+    THREAD_ID = get(config, "discord.thread", THREAD_ID);
 
     // webhooks
     WEBHOOK_URL = get(config, "discord.webhook.webhook_url", WEBHOOK_URL);

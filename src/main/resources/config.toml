@@ -17,6 +17,11 @@ token = "TOKEN"
 # Channel ID to send Minecraft chat messages to
 channel = "000000000000000000"
 
+# OPTIONAL - Thread ID to send Minecraft chat messages to
+# If set, the bot and webhooks will send messages to this thread instead of the channel
+# Leave empty to send messages to the channel
+thread = ""
+
 # Show messages from bots in Minecraft chat
 show_bot_messages = false
 # Show clickable links for attachments in Minecraft chat

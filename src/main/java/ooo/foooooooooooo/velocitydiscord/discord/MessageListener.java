@@ -47,7 +47,7 @@ public class MessageListener extends ListenerAdapter {
 
   @Override
   public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
-    if (!event.isFromType(ChannelType.TEXT)) {
+    if (!event.isFromType(ChannelType.TEXT) && !event.isFromThread()) {
       logger.finest("ignoring non text channel message");
       return;
     }
@@ -56,8 +56,9 @@ public class MessageListener extends ListenerAdapter {
       jda = event.getJDA();
     }
 
-    var channel = event.getChannel().asTextChannel();
-    if (!channel.getId().equals(config.bot.CHANNEL_ID)) {
+    var channelId = event.getChannel().getId();
+
+    if (!channelId.equals(config.bot.CHANNEL_ID) && !channelId.equals(config.bot.THREAD_ID)) {
       return;
     }
 
