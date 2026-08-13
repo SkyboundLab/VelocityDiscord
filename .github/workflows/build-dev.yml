@@ -24,7 +24,7 @@ jobs:
         uses: gradle/gradle-build-action@v3
 
       - name: Build
-        run: gradle shadowJar
+        run: ./gradlew shadowJar
 
       - name: Extract repository name
         run: echo "NAME=$(basename ${{ github.repository }})" >> $GITHUB_ENV
