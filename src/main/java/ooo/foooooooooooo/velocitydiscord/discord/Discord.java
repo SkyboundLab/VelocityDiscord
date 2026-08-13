@@ -121,28 +121,49 @@ public class Discord extends ListenerAdapter {
       event.getGuildAvailableCount()
     ));
 
-    var channel = jda.getTextChannelById(Objects.requireNonNull(config.bot.CHANNEL_ID));
+    activateChannels();
+  }
 
-    if (channel == null) {
-      logger.severe("Could not load channel with id: " + config.bot.CHANNEL_ID);
+  private void activateChannels() {
+    if (jda == null || jda.getStatus() == JDA.Status.SHUTDOWN) {
       return;
     }
 
-    logger.info("Loaded channel: " + channel.getName());
+    var threadId = config.bot.THREAD_ID;
+    var channelId = config.bot.CHANNEL_ID;
 
-    GuildMessageChannel messageChannel = channel;
+    GuildMessageChannel messageChannel;
 
-    if (!config.bot.THREAD_ID.isEmpty()) {
-      var thread = jda.getThreadChannelById(config.bot.THREAD_ID);
+    if (threadId != null && !threadId.isEmpty()) {
+      var thread = jda.getThreadChannelById(threadId);
 
       if (thread == null) {
-        logger.severe("Could not load thread with id: " + config.bot.THREAD_ID);
+        // threads are not always in the cache at onReady since they are loaded from
+        // a later THREAD_LIST_SYNC gateway event, so retry instead of permanently bailing
+        logger.info("Thread with id " + threadId + " not cached yet, retrying in 5 seconds...");
+        jda.getGatewayPool().schedule(this::activateChannels, 5, TimeUnit.SECONDS);
         return;
       }
 
       logger.info("Loaded thread: " + thread.getName());
 
       messageChannel = thread;
+    } else {
+      if (channelId == null || channelId.isEmpty()) {
+        logger.severe("Neither discord.channel nor discord.thread is configured!");
+        return;
+      }
+
+      var channel = jda.getTextChannelById(channelId);
+
+      if (channel == null) {
+        logger.severe("Could not load channel with id: " + channelId);
+        return;
+      }
+
+      logger.info("Loaded channel: " + channel.getName());
+
+      messageChannel = channel;
     }
 
     if (!messageChannel.canTalk()) {
@@ -169,6 +190,8 @@ public class Discord extends ListenerAdapter {
         logger.warning("Unknown message type in preReadyQueue: " + msg);
       }
     }
+
+    preReadyQueue.clear();
   }
 
   @Override

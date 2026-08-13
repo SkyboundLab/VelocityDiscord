@@ -210,6 +210,12 @@ public class VelocityDiscord {
   private void tryStartTopicScheduler() {
     if (config.bot.UPDATE_CHANNEL_TOPIC_INTERVAL_MINUTES < 10) return;
 
+    // threads don't have topics, so there's nothing to update
+    if (config.bot.THREAD_ID != null && !config.bot.THREAD_ID.isEmpty()) {
+      logger.info("Discord thread configured, channel topic updates are disabled");
+      return;
+    }
+
     this.topicScheduler = server.getScheduler()
       .buildTask(this, () -> {
         logger.fine("Updating channel topic");
