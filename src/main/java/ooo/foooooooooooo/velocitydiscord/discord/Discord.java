@@ -19,11 +19,13 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
+import net.dv8tion.jda.api.utils.data.DataObject;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.internal.requests.restaction.WebhookMessageCreateActionImpl;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import ooo.foooooooooooo.velocitydiscord.config.Config;
+import ooo.foooooooooooo.velocitydiscord.config.DiscordMessageConfig;
 import ooo.foooooooooooo.velocitydiscord.discord.commands.ICommand;
 import ooo.foooooooooooo.velocitydiscord.discord.commands.ListCommand;
 import ooo.foooooooooooo.velocitydiscord.util.StringTemplate;
@@ -186,6 +188,8 @@ public class Discord extends ListenerAdapter {
         sendWebhookMessage(webhookMessage.message, webhookMessage.avatar, webhookMessage.username);
       } else if (msg instanceof MessageEmbed embed) {
         activeChannel.sendMessageEmbeds(embed).queue();
+      } else if (msg instanceof MessageCreateData data) {
+        activeChannel.sendMessage(data).queue();
       } else {
         logger.warning("Unknown message type in preReadyQueue: " + msg);
       }
@@ -213,13 +217,7 @@ public class Discord extends ListenerAdapter {
 
   @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
   public void onPlayerChat(String username, String uuid, Optional<String> prefix, String server, String content) {
-    if (config.bot.ENABLE_MENTIONS) {
-      content = parseMentions(content);
-    }
-
-    if (!config.bot.ENABLE_EVERYONE_AND_HERE) {
-      content = filterEveryoneAndHere(content);
-    }
+    content = prepareContent(content);
 
     if (config.discord.MESSAGE_FORMAT.isPresent()) {
       var message = new StringTemplate(config.discord.MESSAGE_FORMAT.get())
@@ -308,6 +306,61 @@ public class Discord extends ListenerAdapter {
     switch (config.discord.LEAVE_MESSAGE_TYPE) {
       case EMBED -> sendEmbedMessage(message, config.discord.LEAVE_MESSAGE_EMBED_COLOR);
       case TEXT -> sendMessage(message);
+    }
+  }
+
+  @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+  public void onYepDiscordMessage(String username, String uuid, Optional<String> prefix, String server, String text, String imageUrl, String embedJson) {
+    text = prepareContent(text);
+
+    var embed = buildYepEmbed(imageUrl, embedJson);
+    if (text.isEmpty() && embed == null) return;
+
+    switch (config.discord.MESSAGE_TYPE) {
+      case WEBHOOK -> {
+        var message = new MessageCreateBuilder();
+        if (!text.isEmpty()) message.setContent(text);
+        if (embed != null) message.addEmbeds(embed);
+
+        sendWebhookMessage(uuid, username, server, message.build());
+      }
+      case TEXT, EMBED -> {
+        var content = text;
+        if (config.discord.MESSAGE_FORMAT.isPresent()) {
+          content = new StringTemplate(config.discord.MESSAGE_FORMAT.get())
+            .add("username", username)
+            .add("server", server)
+            .add("message", text)
+            .add("prefix", prefix.orElse(""))
+            .toString();
+        }
+
+        if (embed != null) {
+          var message = new MessageCreateBuilder();
+          if (!content.isEmpty()) message.setContent(content);
+          message.addEmbeds(embed);
+
+          sendMessage(message.build());
+        } else if (config.discord.MESSAGE_TYPE == DiscordMessageConfig.UserMessageType.EMBED) {
+          sendEmbedMessage(content, config.discord.MESSAGE_EMBED_COLOR);
+        } else if (!content.isEmpty()) {
+          sendMessage(content);
+        }
+      }
+      default -> throw new IllegalArgumentException("Unexpected value: " + config.discord.MESSAGE_TYPE);
+    }
+  }
+
+  private MessageEmbed buildYepEmbed(String imageUrl, String embedJson) {
+    try {
+      var embed = embedJson == null || embedJson.isBlank() ? new EmbedBuilder() : EmbedBuilder.fromData(DataObject.fromJson(embedJson));
+
+      if (imageUrl != null && !imageUrl.isEmpty() && (embed.isEmpty() || embed.build().getImage() == null)) embed.setImage(imageUrl);
+
+      return embed.isEmpty() ? null : embed.build();
+    } catch (Exception e) {
+      logger.warning("Failed to parse embed json from yep message: " + e.getMessage());
+      return null;
     }
   }
 
@@ -594,6 +647,14 @@ public class Discord extends ListenerAdapter {
     }
   }
 
+  private void sendMessage(@Nonnull MessageCreateData message) {
+    if (ready) {
+      activeChannel.sendMessage(message).queue();
+    } else {
+      preReadyQueue.add(message);
+    }
+  }
+
   @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
   private void sendEmbedMessage(String message, Optional<Color> color) {
     var embed = new EmbedBuilder().setDescription(message);
@@ -608,6 +669,10 @@ public class Discord extends ListenerAdapter {
   }
 
   private void sendWebhookMessage(String uuid, String username, String server, String content) {
+    sendWebhookMessage(uuid, username, server, new MessageCreateBuilder().setContent(content).build());
+  }
+
+  private void sendWebhookMessage(String uuid, String username, String server, MessageCreateData message) {
     if (webhookClient == null) {
       logger.fine("Webhook client was not created due to configuration error, skipping sending message");
       return;
@@ -623,12 +688,10 @@ public class Discord extends ListenerAdapter {
       .add("server", server)
       .toString();
 
-    var webhookMessage = new MessageCreateBuilder().setContent(content).build();
-
     if (ready) {
-      sendWebhookMessage(webhookMessage, avatar, discordName);
+      sendWebhookMessage(message, avatar, discordName);
     } else {
-      preReadyQueue.add(new QueuedWebhookMessage(webhookMessage, avatar, discordName));
+      preReadyQueue.add(new QueuedWebhookMessage(message, avatar, discordName));
     }
   }
 
@@ -649,6 +712,18 @@ public class Discord extends ListenerAdapter {
   }
 
   // endregion
+
+  private String prepareContent(String content) {
+    if (config.bot.ENABLE_MENTIONS) {
+      content = parseMentions(content);
+    }
+
+    if (!config.bot.ENABLE_EVERYONE_AND_HERE) {
+      content = filterEveryoneAndHere(content);
+    }
+
+    return content;
+  }
 
   private String parseMentions(String message) {
     if (activeChannel == null || !ready) {

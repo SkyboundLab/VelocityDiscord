@@ -21,19 +21,19 @@ Chat from all servers gets bridged with a discord channel
 ## Installation
 
 1. Create a bot application [here](https://discordapp.com/developers/applications/)
-    - Go to the `Bot` tab and click `Add bot`
+  - Go to the `Bot` tab and click `Add bot`
 2. Enable the `SERVER MEMBERS INTENT` and `MESSAGE CONTENT INTENT` under `Privileged Gateway Intents`
 3. Copy the bot's token, you might have to click `Reset Token` first
 4. Install the plugin on your server, start the server once, then stop the server again
 5. Open the plugin config file at `plugins/discord/config.toml`
 6. Under `[discord]`, paste your token in place of `TOKEN`
 7. Under `[discord]`, paste the channel id you want to use
-    - To get a channel id, you have to enable developer mode in Discord
-    - Open Discord settings, go to `Advanced`, then turn on `Developer Mode`
-    - Now right-click the channel you want to use and click `Copy ID`
+  - To get a channel id, you have to enable developer mode in Discord
+  - Open Discord settings, go to `Advanced`, then turn on `Developer Mode`
+  - Now right-click the channel you want to use and click `Copy ID`
 8. OPTIONAL: Under `[discord]`, paste the thread id you want to use under `thread`
-    - If set, all messages (including webhook messages) will be sent to this thread instead of the channel
-    - Right-click the thread and click `Copy ID`
+  - If set, all messages (including webhook messages) will be sent to this thread instead of the channel
+  - Right-click the thread and click `Copy ID`
 9. Set any additional config options you want
 10. Start the server and check if it works
 
@@ -47,8 +47,46 @@ Chat from all servers gets bridged with a discord channel
 ### For advancements/deaths
 
 1. Install the [YepLib](https://github.com/unilock/YepLib) velocity plugin alongside this plugin
-2. Install the [YepTwo](https://github.com/unilock/YepTwo) backend mod/plugin on each of your backend servers that you want to
-   receive advancements/deaths from
+2. Install the [YepTwo](https://github.com/unilock/YepTwo) backend mod/plugin on each of your backend servers that you want to receive advancements/deaths from
+
+## Backend Plugin Messages
+
+Custom messages can be sent from backend plugins to Discord using the `yep:generic` plugin channel.
+
+### Setup
+
+1. Install the [YepLib](https://github.com/unilock/YepLib) Velocity plugin alongside this plugin
+2. On each backend server, register the outgoing channel and send messages as shown below
+
+```kotlin
+override fun onEnable() {
+  Bukkit.getMessenger().registerOutgoingPluginChannel(this, "yep:generic")
+}
+```
+
+### Message Format
+
+Messages are sent in the following format, with `␞` separating the type from the parameters and `␟` separating each parameter:
+
+```
+type␞username␟uuid␟text␟imageUrl␟embedJson
+```
+
+- `type` - Any message whose type name is `discord` (e.g. `myplugin:discord`) is relayed to Discord
+- `username` - The username to display
+- `uuid` - Used for the `{prefix}` lookup and the webhook avatar/username
+- `text` - The message content, also used for the `discord.chat.message` format
+- `imageUrl` - OPTIONAL, attached as the embed image
+- `embedJson` - OPTIONAL, a standard Discord embed JSON object
+
+### Sending a Message
+
+```kotlin
+fun send(player: Player) {
+  val msg = """myplugin:discord␞Steve␟069a79f4-44e9-4726-a5be-fca90e38aaf5␟look at this␟https://example.com/image.png␟{"title":"Drop","color":4243279}"""
+  player.sendPluginMessage(this, "yep:generic", msg.toByteArray(Charsets.UTF_8))
+}
+```
 
 ## Configuration
 

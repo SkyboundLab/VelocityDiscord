@@ -134,7 +134,7 @@ public class VelocityListener {
     discord.updateActivityPlayerAmount(this.server.getPlayerCount());
   }
 
-  private Optional<String> getPrefix(UUID uuid) {
+  public Optional<String> getPrefix(UUID uuid) {
     var luckPerms = VelocityDiscord.getLuckPerms();
     if (luckPerms == null) return Optional.empty();
 
