@@ -40,8 +40,8 @@ Chat from all servers gets bridged with a discord channel
 ### For Webhooks
 
 1. Create a webhook in the channel you want to use
-    - Right-click the channel, click `Edit Channel`, go to `Integrations`, click `Create Webhook`
-    - Copy the webhook URL
+  - Right-click the channel, click `Edit Channel`, go to `Integrations`, click `Create Webhook`
+  - Copy the webhook URL
 2. Paste the webhook URL under `[discord.webhook]` in the config file
 
 ### For advancements/deaths
@@ -64,22 +64,24 @@ override fun onEnable() {
 }
 ```
 
-### Message Format
+### Message format
 
-Messages are sent in the following format, with `␞` separating the type from the parameters and `␟` separating each parameter:
+The plugin sends messages in this format. `␞` separates the type from the parameters, and `␟` separates each parameter:
 
 ```
 type␞username␟uuid␟text␟imageUrl␟embedJson
 ```
 
-- `type` - Any message whose type name is `discord` (e.g. `myplugin:discord`) is relayed to Discord
-- `username` - The username to display
-- `uuid` - Used for the `{prefix}` lookup and the webhook avatar/username
-- `text` - The message content, also used for the `discord.chat.message` format
-- `imageUrl` - OPTIONAL, attached as the embed image
-- `embedJson` - OPTIONAL, a standard Discord embed JSON object
+- `type`: a message type ending in `discord`, such as `myplugin:discord`, relays the message to Discord
+- `username`: the username to display
+- `uuid`: the plugin uses this value for the `{prefix}` lookup and the webhook avatar
+- `text`: the message content. The plugin uses this value for the `discord.chat.message` format
+- `imageUrl`: optional. The plugin attaches this value as the embed image
+- `embedJson`: optional. A standard Discord embed JSON object or an array of objects
 
-### Sending a Message
+You can omit trailing parameters. `discord.chat.message_type` sets the format: `text`, `embed`, or `webhook`. Backend plugins can use the same format to send extra chat messages.
+
+### Sending a message
 
 ```kotlin
 fun send(player: Player) {
@@ -87,6 +89,21 @@ fun send(player: Player) {
   player.sendPluginMessage(this, "yep:generic", msg.toByteArray(Charsets.UTF_8))
 }
 ```
+
+### Attachments
+
+Embeds may reference `attachment://<fileName>` URLs. Send the files before the embed as chunks with the `attachment` type:
+
+```
+type␞transferId␟fileName␟index␟total␟base64Chunk
+```
+
+- `type`: a message type ending in `attachment`, such as `myplugin:attachment`
+- `transferId`: groups the chunks of one file
+- `fileName`: the name the `attachment://` URL references
+- `index`: the zero-based chunk index
+- `total`: the number of chunks
+- `base64Chunk`: the chunk data. Each chunk must fit in a single 32767 byte plugin message
 
 ## Configuration
 

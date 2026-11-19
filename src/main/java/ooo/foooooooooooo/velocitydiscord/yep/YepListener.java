@@ -1,48 +1,73 @@
 package ooo.foooooooooooo.velocitydiscord.yep;
 
-import cc.unilock.yeplib.api.event.YepAdvancementEvent;
-import cc.unilock.yeplib.api.event.YepDeathEvent;
 import cc.unilock.yeplib.api.event.YepMessageEvent;
 import com.velocitypowered.api.event.Subscribe;
 import ooo.foooooooooooo.velocitydiscord.VelocityDiscord;
 import ooo.foooooooooooo.velocitydiscord.config.Config;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 public class YepListener {
+  private static final String YEP_NAMESPACE = "yep";
   private static final String DISCORD_MESSAGE_TYPE_NAME = "discord";
+  private static final String ATTACHMENT_MESSAGE_TYPE_NAME = "attachment";
+  private static final String DEATH_MESSAGE_TYPE_NAME = "death";
+  private static final String ADVANCEMENT_MESSAGE_TYPE_NAME = "advancement";
+
+  private static final Pattern ATTACHMENT_URL_PATTERN = Pattern.compile("attachment://([A-Za-z0-9._-]+)");
 
   private final Config config;
+  private final YepAttachmentCache attachments;
 
   public YepListener(Logger logger, Config config) {
     this.config = config;
+    this.attachments = new YepAttachmentCache(logger);
     logger.info("YepListener created");
   }
 
   @Subscribe
-  public void onYepAdvancement(YepAdvancementEvent event) {
-    if (config.serverDisabled(event.getSource().getServer().getServerInfo().getName())) return;
-    VelocityDiscord.getDiscord().onPlayerAdvancement(event.getUsername(), event.getDisplayName(), event.getTitle(), event.getDescription());
-  }
-
-  @Subscribe
-  public void onYepDeath(YepDeathEvent event) {
-    if (config.serverDisabled(event.getSource().getServer().getServerInfo().getName())) return;
-    VelocityDiscord.getDiscord().onPlayerDeath(event.getUsername(), event.getDisplayName(), event.getMessage());
-  }
-
-  @Subscribe
   public void onYepMessage(YepMessageEvent event) {
-    if (!event.getType().getName().equals(DISCORD_MESSAGE_TYPE_NAME)) return;
+    var type = event.getType();
+    var typeName = type.getName();
+    var params = event.getParameters();
 
-    var source = event.getSource();
-    var server = source.getServer().getServerInfo().getName();
+    var server = event.getSource().getServer().getServerInfo().getName();
     if (config.serverDisabled(server)) return;
 
-    onDiscordMessage(event.getParameters(), server);
+    switch (typeName) {
+      case DEATH_MESSAGE_TYPE_NAME -> {
+        if (!type.getNamespace().equals(YEP_NAMESPACE)) return;
+        VelocityDiscord.getDiscord().onPlayerDeath(param(params, 0), param(params, 1), param(params, 2));
+      }
+
+      case ADVANCEMENT_MESSAGE_TYPE_NAME -> {
+        if (!type.getNamespace().equals(YEP_NAMESPACE)) return;
+        VelocityDiscord.getDiscord().onPlayerAdvancement(param(params, 0), param(params, 1), param(params, 3), param(params, 4));
+      }
+
+      case ATTACHMENT_MESSAGE_TYPE_NAME -> onAttachmentMessage(params);
+
+      case DISCORD_MESSAGE_TYPE_NAME -> onDiscordMessage(params, server);
+
+      default -> {}
+    }
+  }
+
+  private void onAttachmentMessage(List<String> params) {
+    try {
+      attachments.addChunk(
+        param(params, 0),
+        param(params, 1),
+        Integer.parseInt(param(params, 2)),
+        Integer.parseInt(param(params, 3)),
+        param(params, 4)
+      );
+    } catch (NumberFormatException ignored) {}
   }
 
   private void onDiscordMessage(List<String> params, String server) {
@@ -60,7 +85,11 @@ public class YepListener {
       } catch (IllegalArgumentException ignored) {}
     }
 
-    VelocityDiscord.getDiscord().onYepDiscordMessage(username, uuid, prefix, server, text, imageUrl, embedJson);
+    var attachmentNames = new LinkedHashSet<String>();
+    var matcher = ATTACHMENT_URL_PATTERN.matcher(embedJson);
+    while (matcher.find()) attachmentNames.add(matcher.group(1));
+
+    VelocityDiscord.getDiscord().onYepDiscordMessage(username, uuid, prefix, server, text, imageUrl, embedJson, attachments.take(attachmentNames));
   }
 
   private static String param(List<String> params, int index) {
