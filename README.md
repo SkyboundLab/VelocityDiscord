@@ -21,27 +21,27 @@ Chat from all servers gets bridged with a discord channel
 ## Installation
 
 1. Create a bot application [here](https://discordapp.com/developers/applications/)
-  - Go to the `Bot` tab and click `Add bot`
+    - Go to the `Bot` tab and click `Add bot`
 2. Enable the `SERVER MEMBERS INTENT` and `MESSAGE CONTENT INTENT` under `Privileged Gateway Intents`
 3. Copy the bot's token, you might have to click `Reset Token` first
 4. Install the plugin on your server, start the server once, then stop the server again
 5. Open the plugin config file at `plugins/discord/config.toml`
 6. Under `[discord]`, paste your token in place of `TOKEN`
 7. Under `[discord]`, paste the channel id you want to use
-  - To get a channel id, you have to enable developer mode in Discord
-  - Open Discord settings, go to `Advanced`, then turn on `Developer Mode`
-  - Now right-click the channel you want to use and click `Copy ID`
+    - To get a channel id, you have to enable developer mode in Discord
+    - Open Discord settings, go to `Advanced`, then turn on `Developer Mode`
+    - Now right-click the channel you want to use and click `Copy ID`
 8. OPTIONAL: Under `[discord]`, paste the thread id you want to use under `thread`
-  - If set, all messages (including webhook messages) will be sent to this thread instead of the channel
-  - Right-click the thread and click `Copy ID`
+    - If set, all messages (including webhook messages) will be sent to this thread instead of the channel
+    - Right-click the thread and click `Copy ID`
 9. Set any additional config options you want
 10. Start the server and check if it works
 
 ### For Webhooks
 
 1. Create a webhook in the channel you want to use
-  - Right-click the channel, click `Edit Channel`, go to `Integrations`, click `Create Webhook`
-  - Copy the webhook URL
+    - Right-click the channel, click `Edit Channel`, go to `Integrations`, click `Create Webhook`
+    - Copy the webhook URL
 2. Paste the webhook URL under `[discord.webhook]` in the config file
 
 ### For advancements/deaths
